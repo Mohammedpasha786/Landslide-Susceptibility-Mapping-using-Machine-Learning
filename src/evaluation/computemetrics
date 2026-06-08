@@ -1,0 +1,54 @@
+function metrics = computeMetrics(scores, labels, threshold)
+% COMPUTEMETRICS  Compute classification metrics from predicted scores and labels.
+%
+%   metrics = computeMetrics(scores, labels)
+%   metrics = computeMetrics(scores, labels, threshold)
+%
+%   Inputs:
+%     scores     - [1 x n] predicted probabilities in [0, 1]
+%     labels     - [1 x n] binary ground-truth labels (0 or 1)
+%     threshold  - decision threshold (default: 0.5)
+%
+%   Output:
+%     metrics    - struct with AUC, accuracy, sensitivity, specificity,
+%                  precision, F1, kappa, TP, TN, FP, FN
+
+    if nargin < 3, threshold = 0.5; end
+
+    scores = scores(:)';
+    labels = labels(:)';
+
+    pred = double(scores >= threshold);
+
+    %% Confusion values
+    TP = sum(pred == 1 & labels == 1);
+    TN = sum(pred == 0 & labels == 0);
+    FP = sum(pred == 1 & labels == 0);
+    FN = sum(pred == 0 & labels == 1);
+    n  = TP + TN + FP + FN;
+
+    metrics.TP = TP; metrics.TN = TN;
+    metrics.FP = FP; metrics.FN = FN;
+
+    metrics.accuracy    = (TP + TN) / n;
+    metrics.sensitivity = TP / (TP + FN + eps);
+    metrics.specificity = TN / (TN + FP + eps);
+    metrics.precision   = TP / (TP + FP + eps);
+    metrics.recall      = metrics.sensitivity;
+    metrics.F1          = 2 * metrics.precision * metrics.recall / ...
+                              (metrics.precision + metrics.recall + eps);
+
+    % AUC-ROC
+    [~, ~, ~, metrics.auc] = perfcurve(labels, scores, 1);
+
+    % Cohen's Kappa
+    po = (TP + TN) / n;
+    pe = ((TP+FP)/n) * ((TP+FN)/n) + ((TN+FN)/n) * ((TN+FP)/n);
+    metrics.kappa = (po - pe) / (1 - pe + eps);
+
+    % Matthews Correlation Coefficient
+    denom = sqrt((TP+FP)*(TP+FN)*(TN+FP)*(TN+FN));
+    metrics.MCC = (TP*TN - FP*FN) / (denom + eps);
+
+    metrics.threshold = threshold;
+end
