@@ -1,0 +1,90 @@
+function classMap = classifyZones(susceptMap, nClasses)
+% CLASSIFYZONES  Classify a continuous susceptibility raster into discrete
+%   zones using Jenks natural breaks (Fisher-Jenks algorithm).
+%
+%   classMap = classifyZones(susceptMap, nClasses)
+%
+%   Inputs:
+%     susceptMap  - [rows x cols] susceptibility probability raster [0,1]
+%     nClasses    - number of classes (default: 5)
+%
+%   Output:
+%     classMap    - [rows x cols] integer class map:
+%                     1 = Very Low
+%                     2 = Low
+%                     3 = Moderate
+%                     4 = High
+%                     5 = Very High
+%
+%   Algorithm:
+%     Fisher-Jenks minimizes within-class variance (GVF — Goodness of
+%     Variance Fit). Falls back to equal-interval if sample too large.
+
+    if nargin < 2, nClasses = 5; end
+
+    data = double(susceptMap(:));
+    data = data(~isnan(data));
+    n    = numel(data);
+
+    %% Sub-sample for performance (Jenks is O(n²))
+    maxSamples = 10000;
+    if n > maxSamples
+        data_sample = data(randperm(n, maxSamples));
+    else
+        data_sample = data;
+    end
+    data_sample = sort(data_sample);
+    ns = numel(data_sample);
+
+    %% Fisher-Jenks DP
+    % mat1(i,j) = lower-class limit
+    % mat2(i,j) = variance combination
+    mat1 = ones(ns, nClasses);
+    mat2 = zeros(ns, nClasses);
+    variance = zeros(ns, 1);
+
+    for i = 2:ns
+        sumX = 0; sumX2 = 0;
+        for m = 1:i
+            v = data_sample(i - m + 1);
+            sumX2 = sumX2 + v^2;
+            sumX  = sumX  + v;
+            variance(m) = sumX2 - (sumX^2) / m;
+        end
+        mat1(i, 1) = 1;
+        mat2(i, 1) = variance(1);
+        for j = 2:nClasses
+            mat1(i, j) = -1;
+            mat2(i, j) = Inf;
+        end
+        for j = 2:nClasses
+            for m = j:i
+                iVal = variance(i - m + 1);
+                if iVal + mat2(m-1, j-1) < mat2(i, j)
+                    mat1(i, j) = m;
+                    mat2(i, j) = iVal + mat2(m-1, j-1);
+                end
+            end
+        end
+    end
+
+    %% Extract break points
+    breaks = zeros(nClasses - 1, 1);
+    k = ns;
+    for j = nClasses:-1:2
+        idx   = mat1(k, j) - 1;
+        breaks(j-1) = data_sample(idx);
+        k = idx;
+    end
+    breaks = [0; breaks; 1];   % add boundaries
+
+    %% Classify full raster
+    classMap = zeros(size(susceptMap), 'uint8');
+    for k = 1:nClasses
+        mask = susceptMap >= breaks(k) & susceptMap < breaks(k+1);
+        classMap(mask) = k;
+    end
+    classMap(susceptMap >= breaks(end)) = nClasses;   % catch upper boundary
+
+    fprintf('  ✓ Jenks breaks: %s\n', num2str(breaks', '%.3f  '));
+end
