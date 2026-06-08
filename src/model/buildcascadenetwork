@@ -1,0 +1,68 @@
+function net = buildCascadeNetwork(nInputs, hiddenSizes, cfg)
+% BUILDCASCADENETWORK  Construct a Cascade Forward Neural Network for
+%   binary landslide susceptibility classification.
+%
+%   net = buildCascadeNetwork(nInputs, hiddenSizes, cfg)
+%
+%   Inputs:
+%     nInputs      - number of input variables (e.g. 24)
+%     hiddenSizes  - vector of hidden layer sizes (e.g. [16 8])
+%     cfg          - configuration struct with training parameters
+%
+%   Output:
+%     net          - configured (untrained) cascadeforwardnet object
+%
+%   Architecture:
+%     Input(24) ──► Hidden1(16, tansig) ──► Hidden2(8, tansig) ──► Output(1, logsig)
+%                         ▲                        ▲
+%                  Cascade connections from input layer to all subsequent layers
+%
+%   Key property of cascade networks:
+%     Each layer receives inputs from ALL previous layers (not just adjacent),
+%     which improves gradient flow and reduces vanishing gradient issues
+%     — particularly beneficial for spatial susceptibility data.
+
+    %% Create network
+    net = cascadeforwardnet(hiddenSizes, 'trainlm');
+
+    %% Activation functions
+    nHidden = numel(hiddenSizes);
+    for i = 1:nHidden
+        net.layers{i}.transferFcn = 'tansig';   % hyperbolic tangent sigmoid
+    end
+    net.layers{nHidden + 1}.transferFcn = 'logsig';  % logistic sigmoid → [0,1]
+
+    %% Training algorithm: Levenberg-Marquardt
+    net.trainFcn = 'trainlm';
+
+    %% Training parameters
+    net.trainParam.epochs    = cfg.maxEpochs;
+    net.trainParam.lr        = cfg.lr;
+    net.trainParam.mu        = 0.001;    % initial damping factor
+    net.trainParam.mu_dec    = 0.1;      % decrease factor
+    net.trainParam.mu_inc    = 10;       % increase factor
+    net.trainParam.mu_max    = 1e10;     % maximum mu
+    net.trainParam.goal      = 1e-6;     % MSE goal
+    net.trainParam.min_grad  = 1e-7;     % minimum gradient
+    net.trainParam.max_fail  = 10;       % early stopping patience (validation)
+    net.trainParam.showWindow = false;   % suppress GUI (set true for interactive)
+    net.trainParam.showCommandLine = true;
+
+    %% Data division
+    net.divideFcn              = 'dividerand';
+    net.divideParam.trainRatio = cfg.trainRatio;
+    net.divideParam.valRatio   = cfg.valRatio;
+    net.divideParam.testRatio  = cfg.testRatio;
+
+    %% Performance function
+    net.performFcn = 'mse';   % mean squared error
+
+    %% Weight initialization
+    net = init(net);
+
+    fprintf('  Network architecture: %d inputs → [%s] → 1 output\n', ...
+            nInputs, num2str(hiddenSizes));
+    fprintf('  Training algorithm  : Levenberg-Marquardt (trainlm)\n');
+    fprintf('  Activation (hidden) : tansig | Output: logsig\n');
+    fprintf('  Max epochs          : %d | LR: %.4f\n', cfg.maxEpochs, cfg.lr);
+end
