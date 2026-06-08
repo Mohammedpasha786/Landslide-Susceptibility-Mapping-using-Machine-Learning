@@ -1,0 +1,60 @@
+# ── MATLAB ────────────────────────────────────────────────────────────────
+*.asv          # auto-save files
+*.mex*         # compiled MEX files (platform-specific)
+*.p            # P-code (obfuscated) files
+*.mlapp        # MATLAB App Designer (if not tracked intentionally)
+slprj/         # Simulink project folder
+codegen/       # MATLAB Coder output
+
+# ── Data (large binary files — use Git LFS or external storage) ───────────
+data/raw/
+data/processed/
+*.tif
+*.tiff
+*.hgt          # SRTM height tiles
+*.nc           # NetCDF files
+*.mat          # MATLAB workspace saves (large)
+*.h5
+*.hdf5
+
+# Allow small example data
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# ── Results ───────────────────────────────────────────────────────────────
+results/maps/
+results/figures/
+results/metrics/
+
+# Allow placeholder files
+!results/maps/.gitkeep
+!results/figures/.gitkeep
+!results/metrics/.gitkeep
+
+# ── OS / Editor ───────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+Thumbs.db
+desktop.ini
+.AppleDouble
+.LSOverride
+Icon
+
+# JetBrains IDEs
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# ── Python (if used for pre-processing scripts) ───────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+.venv/
+venv/
+
+# ── Logs ──────────────────────────────────────────────────────────────────
+*.log
+training_log.txt
