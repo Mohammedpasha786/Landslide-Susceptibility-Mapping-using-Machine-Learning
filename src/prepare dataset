@@ -1,0 +1,61 @@
+function [trainX, trainY, testX, testY, idx] = prepareDataset(X_all, inventoryFile, cfg)
+% PREPAREDATASET  Extract a balanced training/test dataset from the
+%   full feature matrix and a landslide inventory raster.
+%
+%   [trainX, trainY, testX, testY, idx] = prepareDataset(X_all, inventoryFile, cfg)
+%
+%   Inputs:
+%     X_all          - [nVars x nPixels] full feature matrix
+%     inventoryFile  - path to binary GeoTIFF inventory (1=landslide, 0=stable)
+%     cfg            - configuration struct with fields:
+%                        trainRatio, valRatio, testRatio, randomSeed
+%
+%   Outputs:
+%     trainX, trainY - training features [nVars x n] and labels [1 x n]
+%     testX,  testY  - test features and labels
+%     idx            - struct with landslide/nonLandslide pixel indices
+
+    rng(cfg.randomSeed);
+
+    %% Load inventory
+    inventory = double(geotiffread(inventoryFile));
+    inventory(inventory < 0) = 0;
+    inventory = logical(round(inventory));
+
+    lsIdx  = find(inventory(:) == 1);   % landslide pixels
+    nls_all = find(inventory(:) == 0);  % non-landslide pixels
+
+    nLS  = numel(lsIdx);
+    assert(nLS > 0, 'No landslide pixels found in inventory raster.');
+
+    % Balance: equal number of non-landslide samples (random selection)
+    nls_sample = nls_all(randperm(numel(nls_all), nLS));
+
+    idx.landslide    = lsIdx;
+    idx.nonLandslide = nls_sample;
+
+    allIdx    = [lsIdx(:); nls_sample(:)];
+    allLabels = [ones(nLS,1); zeros(nLS,1)];
+
+    % Shuffle
+    order = randperm(2*nLS);
+    allIdx    = allIdx(order);
+    allLabels = allLabels(order);
+
+    X = X_all(:, allIdx);   % [nVars x 2*nLS]
+    Y = allLabels';         % [1 x 2*nLS]
+
+    %% Split train / val / test
+    n       = size(X, 2);
+    nTrain  = round(cfg.trainRatio * n);
+    nTest   = n - nTrain;
+
+    trainX = X(:, 1:nTrain);
+    trainY = Y(1:nTrain);
+    testX  = X(:, nTrain+1:end);
+    testY  = Y(nTrain+1:end);
+
+    fprintf('  Dataset: %d total samples (%d landslide + %d non-landslide)\n', ...
+            2*nLS, nLS, nLS);
+    fprintf('  Train: %d  |  Test: %d\n', nTrain, nTest);
+end
